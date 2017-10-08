@@ -43,6 +43,7 @@ void display() {
 
     glUseProgram(programmId);
 
+    changeMatrix();
     glUniformMatrix4fv(matrixId, 1, GL_FALSE, &mvp[0][0]);
 
     glEnableVertexAttribArray(0);
@@ -60,7 +61,6 @@ void display() {
         (void*)0
     );
 
-    changeMatrix();
     glDrawArrays(GL_QUADS, 0, 4);
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
