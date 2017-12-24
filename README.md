@@ -10,3 +10,6 @@
 
 #Run
 1. Run from root directory, in order to set right path to object's and shader's files.
+
+#Materials
+See [Learn opengl tutorial](https://learnopengl.com/) for more information about shaders.
