@@ -49,7 +49,7 @@ float calcShadow() {
     for(int x = -1; x <= 1; ++x) {
         for(int y = -1; y <= 1; ++y) {
             float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-            shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
+            shadow += currentDepth - bias > pcfDepth  ? 0.7 : 0.0;
         }
     }
     shadow /= 9.0;
@@ -79,7 +79,7 @@ vec3 calcPhong() {
 }
 
 void main() {
-    vec3 color = vec3(0.4, 0.4, 0.4);
+    vec3 color = vec3(0.7, 0.7, 0.7);
     vec3 normal = normalize(Normal);
     vec3 lightColor = vec3(0.3);
     vec3 ambient = 0.15 * color;
