@@ -105,9 +105,9 @@ float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
-    if (TwEventMouseMotionGLUT(static_cast<int>(xpos), static_cast<int>(ypos))) {
-        return;
-    }
+//    if (TwEventMouseMotionGLUT(static_cast<int>(xpos), static_cast<int>(ypos))) {
+//        return;
+//    }
 
     if (firstMouse) {
         lastX = static_cast<float>(xpos);
@@ -131,45 +131,48 @@ void window_size_callback(GLFWwindow* window, int width, int height) {
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (TwEventKeyGLFW(key, action)) {
-        return;
-    }
+//    if (TwEventKeyGLFW(key, action)) {
+//        return;
+//    }
 
-    switch (key) {
+    if (action == GLFW_PRESS) {
 
-        case GLFW_KEY_ESCAPE:
-            glfwSetWindowShouldClose(window, true);
-            break;
-        case GLFW_KEY_W:
-            g_sample->camera.processKeyboard(FORWARD, deltaTime);
-            break;
-        case GLFW_KEY_S:
-            g_sample->camera.processKeyboard(BACKWARD, deltaTime);
-            break;
-        case GLFW_KEY_A:
-            g_sample->camera.processKeyboard(LEFT, deltaTime);
-            break;
-        case GLFW_KEY_D:
-            g_sample->camera.processKeyboard(RIGHT, deltaTime);
-            break;
-        case GLFW_KEY_M:
-            g_sample->change_mode();
-            break;
-        case GLFW_KEY_KP_ADD:
-        case GLFW_KEY_EQUAL:
-            g_sample->set_additional_lights(g_sample->get_additional_lights() + 1);
-            break;
-        case GLFW_KEY_KP_SUBTRACT:
-        case GLFW_KEY_MINUS:
-            g_sample->set_additional_lights(g_sample->get_additional_lights() == 0 ? 0 :
-                                            g_sample->get_additional_lights() - 1);
-            break;
-        case GLFW_KEY_G:
-            g_sample->set_gamma(g_sample->get_gamma() + 0.2f);
-            break;
-        case GLFW_KEY_H:
-            g_sample->set_gamma(g_sample->get_gamma() - 0.2f);
-            break;
+        switch (key) {
+
+            case GLFW_KEY_ESCAPE:
+                glfwSetWindowShouldClose(window, true);
+                break;
+            case GLFW_KEY_W:
+                g_sample->camera.processKeyboard(FORWARD, deltaTime);
+                break;
+            case GLFW_KEY_S:
+                g_sample->camera.processKeyboard(BACKWARD, deltaTime);
+                break;
+            case GLFW_KEY_A:
+                g_sample->camera.processKeyboard(LEFT, deltaTime);
+                break;
+            case GLFW_KEY_D:
+                g_sample->camera.processKeyboard(RIGHT, deltaTime);
+                break;
+            case GLFW_KEY_M:
+                g_sample->change_mode();
+                break;
+            case GLFW_KEY_KP_ADD:
+            case GLFW_KEY_EQUAL:
+                g_sample->set_additional_lights(g_sample->get_additional_lights() + 1);
+                break;
+            case GLFW_KEY_KP_SUBTRACT:
+            case GLFW_KEY_MINUS:
+                g_sample->set_additional_lights(g_sample->get_additional_lights() == 0 ? 0 :
+                                                g_sample->get_additional_lights() - 1);
+                break;
+            case GLFW_KEY_G:
+                g_sample->set_gamma(g_sample->get_gamma() + 0.2f);
+                break;
+            case GLFW_KEY_H:
+                g_sample->set_gamma(g_sample->get_gamma() - 0.2f);
+                break;
+        }
     }
 }
 

@@ -7,25 +7,6 @@ set(OPENGL_LIBRARY
 endif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 
 add_subdirectory(glfw-3.2.1)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/glew-2.1.0/include/)
-
-set(GLEW_SOURCE
-        ${CMAKE_CURRENT_SOURCE_DIR}/glew-2.1.0/src/glew.c
-)
-
-set(GLEW_HEADERS
-        ${CMAKE_CURRENT_SOURCE_DIR}/glew-2.1.0/lib/
-)
-
-add_library( GLEW STATIC
-        ${GLEW_SOURCE}
-        ${GLEW_INCLUDE}
-)
-
-target_link_libraries(GLEW
-        ${OPENGL_LIBRARY}
-        ${EXTRA_LIBS}
-)
 
 # AntTweakBar
 
