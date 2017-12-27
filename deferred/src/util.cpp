@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <cstdio>
 
-#include <glad/glad.h>
 #include <iostream>
-#include "../include/util.h"
+#include "util.h"
+#include "stb_image.h"
 
 namespace utils {
     namespace details {
@@ -80,9 +80,12 @@ namespace utils {
         return prog;
     }
 
-    Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices)
-            : vertices(vertices)
-            , indices(indices)
+    Mesh::Mesh(const std::vector<Vertex>& vertices,
+               const std::vector<unsigned int>& indices,
+               const std::vector<Texture>& textures)
+            : _vertices(vertices)
+            , _indices(indices)
+            , _textures(textures)
     {
         setupMesh();
     }
@@ -95,11 +98,11 @@ namespace utils {
         glBindVertexArray(VAO);
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
-        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, _vertices.size() * sizeof(Vertex), _vertices.data(), GL_STATIC_DRAW);
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int),
-                     &indices[0], GL_STATIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, _indices.size() * sizeof(unsigned int),
+                     &_indices[0], GL_STATIC_DRAW);
 
         // vertex positions
         glEnableVertexAttribArray(0);
@@ -111,9 +114,9 @@ namespace utils {
         glBindVertexArray(0);
     }
 
-    void Mesh::draw() {
+    void Mesh::draw(unsigned int shaderId) {
         glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_TRIANGLE_STRIP, static_cast<GLsizei>(_indices.size()), GL_UNSIGNED_INT, nullptr);
         glBindVertexArray(0);
     }
 
@@ -122,9 +125,9 @@ namespace utils {
         loadModel(path);
     }
 
-    void Model::draw() {
-        for(size_t i = 0; i < meshes.size(); i++) {
-            meshes[i].draw();
+    void Model::draw(unsigned int shaderId) {
+        for(size_t i = 0; i < _meshes.size(); i++) {
+            _meshes[i].draw(shaderId);
         }
     }
 
@@ -136,24 +139,26 @@ namespace utils {
             std::cout << importer.GetErrorString() << std::endl;
             return;
         }
+        _directory = path.substr(0, path.find_last_of('/'));
         processNode(scene->mRootNode, scene);
     }
 
     void Model::processNode(aiNode *node, const aiScene *scene) {
         for(size_t i = 0; i < node->mNumMeshes; i++) {
             aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-            meshes.push_back(processMesh(mesh));
+            _meshes.push_back(processMesh(mesh, scene));
         }
         for(size_t i = 0; i < node->mNumChildren; i++) {
             processNode(node->mChildren[i], scene);
         }
     }
 
-    Mesh Model::processMesh(aiMesh *mesh) {
+    Mesh Model::processMesh(aiMesh *mesh, const aiScene* scene) {
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
+        std::vector<Texture> textures;
 
-        for(unsigned int i = 0; i < mesh->mNumVertices; i++) {
+        for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
             Vertex vertex{};
             glm::vec3 vector;
             vector.x = mesh->mVertices[i].x;
@@ -165,6 +170,14 @@ namespace utils {
             vector.y = mesh->mNormals[i].y;
             vector.z = mesh->mNormals[i].z;
             vertex.Normal = vector;
+            if (mesh->mTextureCoords[0]) {
+                glm::vec2 vec;
+                vec.x = mesh->mTextureCoords[0][i].x;
+                vec.y = mesh->mTextureCoords[0][i].y;
+                vertex.TexCoords = vec;
+            } else {
+                vertex.TexCoords = glm::vec2(0.0f, 0.0f);
+            }
             vertices.push_back(vertex);
         }
 
@@ -174,6 +187,83 @@ namespace utils {
                 indices.push_back(face.mIndices[j]);
             }
         }
-        return Mesh(vertices, indices);
+
+        aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
+
+        // 1. diffuse maps
+        std::vector<Texture> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
+        textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
+        // 2. specular maps
+        std::vector<Texture> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR, "texture_specular");
+        textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
+        // 3. normal maps
+        std::vector<Texture> normalMaps = loadMaterialTextures(material, aiTextureType_HEIGHT, "texture_normal");
+        textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
+        // 4. height maps
+        std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_AMBIENT, "texture_height");
+        textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
+
+        return Mesh(vertices, indices, textures);
+    }
+
+    std::vector<Texture> Model::loadMaterialTextures(aiMaterial *mat, aiTextureType type,
+                                         std::string typeName) {
+        std::vector<Texture> textures;
+        for(unsigned int i = 0; i < mat->GetTextureCount(type); i++)
+        {
+            aiString str;
+            mat->GetTexture(type, i, &str);
+            // check if texture was loaded before and if so, continue to next iteration: skip loading a new texture
+            if (_loaded_textures.find(str.C_Str()) != _loaded_textures.end()) {
+
+                    textures.push_back(_loaded_textures[str.C_Str()]);
+            } else {
+                Texture texture{};
+                texture.id = TextureFromFile(str.C_Str(), _directory);
+                texture.type = typeName;
+                texture.path = str.C_Str();
+                textures.push_back(texture);
+                _loaded_textures.insert(std::make_pair(texture.path, texture));
+            }
+        }
+        return textures;
+    }
+
+    unsigned int TextureFromFile(const char *path, const std::string &directory)
+    {
+        std::string filename = std::string(path);
+        filename = directory + '/' + filename;
+
+        unsigned int textureID;
+        glGenTextures(1, &textureID);
+
+        int width, height, nrComponents;
+        unsigned char *data = stbi_load(filename.c_str(), &width, &height, &nrComponents, 0);
+        if (data) {
+            GLenum format;
+            if (nrComponents == 1)
+                format = GL_RED;
+            else if (nrComponents == 3)
+                format = GL_RGB;
+            else if (nrComponents == 4)
+                format = GL_RGBA;
+
+            glBindTexture(GL_TEXTURE_2D, textureID);
+            glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+            glGenerateMipmap(GL_TEXTURE_2D);
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+            stbi_image_free(data);
+        }
+        else {
+            std::cout << "Texture failed to load at path: " << path << std::endl;
+            stbi_image_free(data);
+        }
+
+        return textureID;
     }
 }
