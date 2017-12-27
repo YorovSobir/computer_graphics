@@ -1,4 +1,4 @@
-# 3D Objects
+# Deferred
 
 # Dependencies
 1. OpenGL 4.5
