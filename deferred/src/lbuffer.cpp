@@ -70,7 +70,8 @@ void sample_t::draw_lbuffer() {
         mat4 model;
         model = translate(model, light.position);
         model = scale(model, vec3(1, 1, 1) * light.size);
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 0.75f, 0.1f, 1000.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_width / window_height,
+                                                0.1f, 100.0f);
 
         mat4 mvp = projection * camera.getViewMatrix() * model;
 
@@ -103,7 +104,8 @@ void sample_t::draw_sphere_centers() {
         mat4 model;
         model = translate(model, light.position);
         model = scale(model, vec3(1, 1, 1) * 0.01f);
-        mat4 projection = glm::perspective(glm::radians(45.0f), 0.75f, 0.1f, 1000.0f);
+        mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_width / window_height,
+                                           0.1f, 1000.0f);
         mat4 mvp = projection * camera.getViewMatrix() * model;
 
         vec3 color = light.diffuse;

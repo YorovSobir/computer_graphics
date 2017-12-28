@@ -9,18 +9,19 @@
 GLFWwindow* window;
 
 sample_t::sample_t(Camera& camera)
-    : camera(camera)
+        : camera(camera)
 {
-//    TwInit(TW_OPENGL, nullptr);
-//    bar_ = TwNewBar("Parameters");
-//    TwDefine("Parameters size='300 160' color='70 100 120' iconpos=topleft valueswidth=70 iconified=true");
+    glfwGetWindowSize(window, &window_width, &window_height);
+    TwInit(TW_OPENGL_CORE, nullptr);
+    TwWindowSize(window_width, window_height);
+    bar_ = TwNewBar("Parameters");
+    TwDefine("Parameters size='300 160' color='70 100 120' iconpos=topleft valueswidth=70 iconified=true");
 
     gbuffer_shader_ = utils::loadShaders("../shaders/gBufferVS.glsl", "../shaders/gBufferFS.glsl");
     light_shader_ = utils::loadShaders("../shaders/lightVS.glsl", "../shaders/lightFS.glsl");
     combine_shader_ = utils::loadShaders("../shaders/combineVS.glsl", "../shaders/combineFS.glsl");
     sphere_shader_ = utils::loadShaders("../shaders/sphereVS.glsl", "../shaders/sphereFS.glsl");
 
-    glfwGetWindowSize(window, &window_width, &window_height);
 
     gbuffer_.reset(new gbuffer_t(window_width, window_height));
     lbuffer_.reset(new lbuffer_t(window_width, window_height));
@@ -32,15 +33,15 @@ sample_t::sample_t(Camera& camera)
     init_lights();
 
 
-//    TwAddVarCB(bar, "additional lights", TW_TYPE_UINT32, set_lights_callback, get_lights_callback, this, "");
-//    TwAddVarRW(bar_, "gamma", TW_TYPE_FLOAT, &gamma, "");
-//    TwAddVarRW(bar_, "lights height", TW_TYPE_FLOAT, &lights_height, "step=0.05");
-//    TwAddVarRW(bar_, "lights speed", TW_TYPE_FLOAT, &lights_speed, "step=0.1");
+    TwAddVarCB(bar_, "additional lights", TW_TYPE_UINT32, set_lights_callback, get_lights_callback, this, "");
+    TwAddVarRW(bar_, "gamma", TW_TYPE_FLOAT, &gamma, "");
+    TwAddVarRW(bar_, "lights height", TW_TYPE_FLOAT, &lights_height, "step=0.05");
+    TwAddVarRW(bar_, "lights speed", TW_TYPE_FLOAT, &lights_speed, "step=0.1");
 }
 
 sample_t::~sample_t() {
-//    TwDeleteAllBars();
-//    TwTerminate();
+    TwDeleteAllBars();
+    TwTerminate();
 }
 
 void sample_t::change_mode() {
@@ -82,7 +83,6 @@ void sample_t::draw_combined() {
 
 void sample_t::draw_frame() {
     update_lights();
-
     draw_gbuffer();
     draw_lbuffer();
     draw_combined();
@@ -92,10 +92,24 @@ void sample_t::draw_frame() {
 }
 
 unique_ptr<sample_t> g_sample;
+bool view_mode = true;
+
+void toggle_mode() {
+    view_mode = !view_mode;
+    if (view_mode) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        TwDefine("Parameters iconified=true");
+    } else {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        TwDefine("Parameters iconified=false");
+    }
+}
+
 
 size_t const default_width = 800;
 size_t const default_height = 600;
 
+Camera camera(glm::vec3(0.0f, 1.5f, 5.0f));
 float lastX = default_width / 2.0f;
 float lastY = default_height / 2.0f;
 bool firstMouse = true;
@@ -105,21 +119,24 @@ float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
-//    if (TwEventMouseMotionGLUT(static_cast<int>(xpos), static_cast<int>(ypos))) {
-//        return;
-//    }
+    if (!view_mode) {
+        if (TwEventMouseMotionGLUT(static_cast<int>(xpos), static_cast<int>(ypos))) {
+            return;
+        }
+    } else {
+        if (firstMouse) {
+            lastX = static_cast<float>(xpos);
+            lastY = static_cast<float>(ypos);
+            firstMouse = false;
+        }
 
-    if (firstMouse) {
+        float xoffset = static_cast<float>(xpos - lastX);
+        float yoffset = static_cast<float>(lastY - ypos);
         lastX = static_cast<float>(xpos);
         lastY = static_cast<float>(ypos);
-        firstMouse = false;
+        g_sample->camera.processMouseMovement(xoffset, yoffset);
     }
 
-    float xoffset = static_cast<float>(xpos - lastX);
-    float yoffset = static_cast<float>(lastY - ypos);
-    lastX = static_cast<float>(xpos);
-    lastY = static_cast<float>(ypos);
-    g_sample->camera.processMouseMovement(xoffset, yoffset);
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
@@ -128,51 +145,61 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 
 void window_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
+    TwWindowSize(width, height);
+    g_sample->set_height(height);
+    g_sample->set_width(width);
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-//    if (TwEventKeyGLFW(key, action)) {
-//        return;
-//    }
+    if (TwEventKeyGLFW(key, action)) {
+        return;
+    }
 
-    if (action == GLFW_PRESS) {
+    switch (key) {
 
-        switch (key) {
-
-            case GLFW_KEY_ESCAPE:
-                glfwSetWindowShouldClose(window, true);
-                break;
-            case GLFW_KEY_W:
-                g_sample->camera.processKeyboard(FORWARD, deltaTime);
-                break;
-            case GLFW_KEY_S:
-                g_sample->camera.processKeyboard(BACKWARD, deltaTime);
-                break;
-            case GLFW_KEY_A:
-                g_sample->camera.processKeyboard(LEFT, deltaTime);
-                break;
-            case GLFW_KEY_D:
-                g_sample->camera.processKeyboard(RIGHT, deltaTime);
-                break;
-            case GLFW_KEY_M:
+        case GLFW_KEY_ESCAPE:
+            glfwSetWindowShouldClose(window, true);
+            break;
+        case GLFW_KEY_W:
+            g_sample->camera.processKeyboard(FORWARD, deltaTime);
+            break;
+        case GLFW_KEY_S:
+            g_sample->camera.processKeyboard(BACKWARD, deltaTime);
+            break;
+        case GLFW_KEY_A:
+            g_sample->camera.processKeyboard(LEFT, deltaTime);
+            break;
+        case GLFW_KEY_D:
+            g_sample->camera.processKeyboard(RIGHT, deltaTime);
+            break;
+        case GLFW_KEY_M: {
+            if (action == GLFW_PRESS) {
                 g_sample->change_mode();
-                break;
-            case GLFW_KEY_KP_ADD:
-            case GLFW_KEY_EQUAL:
-                g_sample->set_additional_lights(g_sample->get_additional_lights() + 1);
-                break;
-            case GLFW_KEY_KP_SUBTRACT:
-            case GLFW_KEY_MINUS:
-                g_sample->set_additional_lights(g_sample->get_additional_lights() == 0 ? 0 :
-                                                g_sample->get_additional_lights() - 1);
-                break;
-            case GLFW_KEY_G:
-                g_sample->set_gamma(g_sample->get_gamma() + 0.2f);
-                break;
-            case GLFW_KEY_H:
-                g_sample->set_gamma(g_sample->get_gamma() - 0.2f);
-                break;
+            }
+            break;
+
         }
+        case GLFW_KEY_Q: {
+            if (action == GLFW_PRESS) {
+                toggle_mode();
+            }
+            break;
+        }
+        case GLFW_KEY_KP_ADD:
+        case GLFW_KEY_EQUAL:
+            g_sample->set_additional_lights(g_sample->get_additional_lights() + 1);
+            break;
+        case GLFW_KEY_KP_SUBTRACT:
+        case GLFW_KEY_MINUS:
+            g_sample->set_additional_lights(g_sample->get_additional_lights() == 0 ? 0 :
+                                            g_sample->get_additional_lights() - 1);
+            break;
+        case GLFW_KEY_G:
+            g_sample->set_gamma(g_sample->get_gamma() + 0.2f);
+            break;
+        case GLFW_KEY_H:
+            g_sample->set_gamma(g_sample->get_gamma() - 0.2f);
+            break;
     }
 }
 
@@ -194,6 +221,7 @@ GLFWwindow* initWindow() {
     glfwMakeContextCurrent(window);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, scroll_callback);
+    glfwSetMouseButtonCallback(window, reinterpret_cast<GLFWmousebuttonfun>(TwEventMouseButtonGLFW));
     glfwSetKeyCallback(window, key_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -207,10 +235,9 @@ GLFWwindow* initWindow() {
 }
 
 int main(int argc, char ** argv) {
-
+    freopen("/dev/null", "w", stderr);
     window = initWindow();
 
-    Camera camera(glm::vec3(0.0f, 1.0f, 5.0f));
     g_sample.reset(new sample_t(camera));
 
     while (!glfwWindowShouldClose(window)) {
@@ -218,7 +245,7 @@ int main(int argc, char ** argv) {
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
         g_sample->draw_frame();
-//        TwDraw();
+        TwDraw();
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

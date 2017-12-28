@@ -24,10 +24,10 @@ gbuffer_t::gbuffer_t(int width, int height) {
     glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, specular_tex_, 0);
 
     static GLenum attachments[4] = {
-        GL_COLOR_ATTACHMENT0,
-        GL_COLOR_ATTACHMENT1,
-        GL_COLOR_ATTACHMENT2,
-        GL_COLOR_ATTACHMENT3
+            GL_COLOR_ATTACHMENT0,
+            GL_COLOR_ATTACHMENT1,
+            GL_COLOR_ATTACHMENT2,
+            GL_COLOR_ATTACHMENT3
     };
     glDrawBuffers(4, attachments);
 
@@ -70,7 +70,8 @@ void sample_t::draw_gbuffer() {
     model = scale(model, vec3(0.003));
 
     glUseProgram(gbuffer_shader_);
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 100.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_width / window_height,
+                                            0.1f, 100.0f);
 
     glUniformMatrix4fv(glGetUniformLocation(gbuffer_shader_, "model"), 1, GL_FALSE, value_ptr(model));
     glUniformMatrix4fv(glGetUniformLocation(gbuffer_shader_, "view"), 1, GL_FALSE, value_ptr(camera.getViewMatrix()));

@@ -30,13 +30,21 @@ public:
     inline float get_gamma() {
         return gamma;
     }
+
     inline void set_gamma(float gamma) {
         this->gamma = gamma;
     }
 
+    inline void set_width(int width) {
+        this->window_width = width;
+    }
+
+    inline void set_height(int height) {
+        this->window_height = height;
+    }
+
     Camera camera;
 private:
-    void update_projection();
 
     int mode = 0;
 
@@ -67,7 +75,7 @@ private:
     void draw_combined();
     void draw_sphere_centers();
 
-//    TwBar *bar_;
+    TwBar *bar_;
 };
 
 GLuint gen_texture(int width, int height, GLint internalFormat, GLenum format, GLenum type);
