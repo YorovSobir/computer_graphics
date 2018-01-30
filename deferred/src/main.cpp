@@ -2,14 +2,25 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <glm/vec3.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include "camera.h"
 #include "main.h"
 #include <AntTweakBar.h>
+#include "frame_buffer.h"
 
 GLFWwindow* window;
 
 sample_t::sample_t(Camera& camera)
-        : camera(camera)
+    : camera(camera)
+    , focalDistance(4.5)
+    , focalRange(20)
+    , radiusScale(3.0f / 512)
+    , buffer(512, 512, FrameBuffer::depth32)
+    , buffer2(512 / 4, 512 / 4)
+    , gauss_buffer1(512 / 4, 512 / 4)
+    , gauss_buffer2(512 / 4, 512 / 4)
 {
     glfwGetWindowSize(window, &window_width, &window_height);
     TwInit(TW_OPENGL_CORE, nullptr);
@@ -17,26 +28,63 @@ sample_t::sample_t(Camera& camera)
     bar_ = TwNewBar("Parameters");
     TwDefine("Parameters size='300 160' color='70 100 120' iconpos=topleft valueswidth=70 iconified=true");
 
-    gbuffer_shader_ = utils::loadShaders("../shaders/gBufferVS.glsl", "../shaders/gBufferFS.glsl");
-    light_shader_ = utils::loadShaders("../shaders/lightVS.glsl", "../shaders/lightFS.glsl");
-    combine_shader_ = utils::loadShaders("../shaders/combineVS.glsl", "../shaders/combineFS.glsl");
-    sphere_shader_ = utils::loadShaders("../shaders/sphereVS.glsl", "../shaders/sphereFS.glsl");
 
+    buffer.create();
+    buffer.bind();
 
-    gbuffer_.reset(new gbuffer_t(window_width, window_height));
-    lbuffer_.reset(new lbuffer_t(window_width, window_height));
+    if (!buffer.attachColorTexture(GL_TEXTURE_2D, buffer.createColorTexture ( GL_RGBA, GL_RGBA8 ), 0) )
+        printf ( "buffer error with color attachment\n");
 
-    quad_.reset(new quad1_t(0));
-    sphere_.reset(new sphere_t(0));
-    landscape_.reset(new landscape_t("../resources/hill/hills1.obj", gbuffer_shader_));
+    if ( !buffer.isOk () )
+        printf ( "Error with framebuffer\n" );
 
-    init_lights();
+    buffer.unbind ();
 
+    buffer2.create ();
+    buffer2.bind   ();
 
-    TwAddVarCB(bar_, "additional lights", TW_TYPE_UINT32, set_lights_callback, get_lights_callback, this, "");
-    TwAddVarRW(bar_, "gamma", TW_TYPE_FLOAT, &gamma, "");
-    TwAddVarRW(bar_, "lights height", TW_TYPE_FLOAT, &lights_height, "step=0.05");
-    TwAddVarRW(bar_, "lights speed", TW_TYPE_FLOAT, &lights_speed, "step=0.1");
+    if ( !buffer2.attachColorTexture ( GL_TEXTURE_2D, buffer2.createColorTexture ( GL_RGBA, GL_RGBA8 ), 0 ) )
+        printf ( "buffer2 error with color attachment\n");
+
+    if ( !buffer2.isOk () )
+        printf ( "Error with framebuffer2\n" );
+
+    buffer2.unbind ();
+
+    gauss_buffer1.create ();
+    gauss_buffer1.bind   ();
+
+    if ( !gauss_buffer1.attachColorTexture ( GL_TEXTURE_2D, gauss_buffer1.createColorTexture ( GL_RGBA, GL_RGBA8 ), 0 ) )
+        printf ( "gauss buffer 1 error with color attachment\n");
+
+    if ( !gauss_buffer1.isOk () )
+        printf ( "Error with gauss buffer 1\n" );
+
+    gauss_buffer1.unbind ();
+
+    gauss_buffer2.create ();
+    gauss_buffer2.bind   ();
+
+    if ( !gauss_buffer2.attachColorTexture ( GL_TEXTURE_2D, gauss_buffer2.createColorTexture ( GL_RGBA, GL_RGBA8 ), 0 ) )
+        printf ( "gauss buffer 2 error with color attachment\n");
+
+    if ( !gauss_buffer2.isOk () )
+        printf ( "Error with gauss buffer 2\n" );
+
+    gauss_buffer2.unbind ();
+
+    program1 = utils::loadShaders("../shaders/dof_1VS.glsl", "../shaders/dof_1FS.glsl");
+    program2 = utils::loadShaders("../shaders/dof_2VS.glsl", "../shaders/dof_2FS.glsl");
+    program3 = utils::loadShaders("../shaders/dof_2VS.glsl", "../shaders/dof_3FS.glsl");
+    gauss1 = utils::loadShaders("../shaders/gauss_blur1VS.glsl", "../shaders/gauss_blur1FS.glsl");
+    gauss2 = utils::loadShaders("../shaders/gauss_blur2VS.glsl", "../shaders/gauss_blur2FS.glsl");
+    landscape_.reset(new landscape_t("../resources/Small Tropical Island/Small Tropical Island.obj", program1));
+    quad_.reset(new quad1_t());
+
+    TwAddVarRW(bar_, "focal distance", TW_TYPE_FLOAT, &focalDistance, "");
+    TwAddVarRW(bar_, "focal range", TW_TYPE_FLOAT, &focalRange, "step=0.5");
+    TwAddVarRW(bar_, "radius scale", TW_TYPE_FLOAT, &radiusScale, "step=0.5");
+
 }
 
 sample_t::~sample_t() {
@@ -49,46 +97,102 @@ void sample_t::change_mode() {
     mode %= 3;
 }
 
-void sample_t::draw_combined() {
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+void sample_t::draw_frame() {
+
+    buffer.bind   ();
+    glUseProgram(program1);
+    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClear ( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+
+    glUseProgram(program1);
+    glUniform1f(glGetUniformLocation(program1, "focalDistance"), focalDistance);
+    glUniform1f(glGetUniformLocation(program1, "focalRange"), focalRange);
+    mat4 model;
+    model = translate(model, vec3(0.0f, -5.0f, -20.0f));
+    model = scale(model, vec3(0.07));
+
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)512 / 512,
+                                            0.1f, 100.0f);
+
+    glUniformMatrix4fv(glGetUniformLocation(program1, "model"), 1, GL_FALSE, value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(program1, "view"), 1, GL_FALSE, value_ptr(camera.getViewMatrix()));
+    glUniformMatrix4fv(glGetUniformLocation(program1, "proj"), 1, GL_FALSE, value_ptr(projection));
+    landscape_->draw();
+    glUseProgram(0);
+    buffer.unbind( true );
+
+    glUseProgram(program2);
+    buffer2.bind    ();
+    glClear ( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+
+    glActiveTexture(GL_TEXTURE0);
+    glUniform1i(glGetUniformLocation(program2, "tex"), 0);
+    glBindTexture(GL_TEXTURE_2D, buffer.getColorBuffer());
+
+    glDisable   (GL_DEPTH_TEST);
+    glDepthMask (GL_FALSE);
+    quad_->draw();
+
+    // restore matrix
+    glEnable    ( GL_DEPTH_TEST );
+    glDepthMask ( GL_TRUE );
+
+    buffer2.unbind(true);
+    glUseProgram(0);
+
+
+    glUseProgram(gauss1);
+    gauss_buffer1.bind();
+
+    glClear ( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+
+    glActiveTexture(GL_TEXTURE0);
+    glUniform1i(glGetUniformLocation(gauss1, "tex"), 0);
+    glBindTexture(GL_TEXTURE_2D, buffer2.getColorBuffer());
+
+    glUniform1i(glGetUniformLocation(gauss1, "width"), 512);
+    quad_->draw();
+
+    gauss_buffer1.unbind(true);
+    glUseProgram(0);
+
+    glUseProgram(gauss2);
+    gauss_buffer2.bind();
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_BLEND);
-
-    glUseProgram(combine_shader_);
-
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, gbuffer_->pos_tex_);
-    glUniform1i(glGetUniformLocation(combine_shader_, "gbuffer_pos"), 0);
+    glUniform1i(glGetUniformLocation(gauss2, "tex"), 0);
+    glBindTexture(GL_TEXTURE_2D, gauss_buffer1.getColorBuffer());
 
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, gbuffer_->norm_tex_);
-    glUniform1i(glGetUniformLocation(combine_shader_, "gbuffer_norm"), 1);
-
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, gbuffer_->diffuse_tex_);
-    glUniform1i(glGetUniformLocation(combine_shader_, "gbuffer_color"), 2);
-
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, lbuffer_->light_tex_);
-    glUniform1i(glGetUniformLocation(combine_shader_, "lbuffer"), 3);
-
-    glUniform1i(glGetUniformLocation(combine_shader_, "mode"), mode);
-    glUniform1f(glGetUniformLocation(combine_shader_, "gamma"), gamma);
+    glUniform1i(glGetUniformLocation(gauss2, "height"), 512);
 
     quad_->draw();
-}
 
-void sample_t::draw_frame() {
-    update_lights();
-    draw_gbuffer();
-    draw_lbuffer();
-    draw_combined();
-    draw_sphere_centers();
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_BLEND);
+    gauss_buffer2.unbind(true);
+    glUseProgram(0);
+
+    glUseProgram(program3);
+    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glActiveTexture(GL_TEXTURE1);
+    glUniform1i(glGetUniformLocation(program3, "texLow"), 1);
+    glBindTexture      ( GL_TEXTURE_2D, gauss_buffer2.getColorBuffer () );
+
+    glActiveTexture( GL_TEXTURE0);
+    glUniform1i(glGetUniformLocation(program3, "tex"), 0);
+    glBindTexture      ( GL_TEXTURE_2D, buffer.getColorBuffer () );
+
+    glUniform1f(glGetUniformLocation(program3, "radiusScale"), radiusScale);
+
+    glDisable   ( GL_DEPTH_TEST );
+    glDepthMask ( GL_FALSE );
+    quad_->draw();
+    // restore matrix
+    glEnable    ( GL_DEPTH_TEST );
+    glDepthMask ( GL_TRUE );
+
+    glUseProgram(0);
+
 }
 
 unique_ptr<sample_t> g_sample;
@@ -106,10 +210,10 @@ void toggle_mode() {
 }
 
 
-size_t const default_width = 800;
-size_t const default_height = 600;
+size_t const default_width = 512;
+size_t const default_height = 512;
 
-Camera camera(glm::vec3(0.0f, 1.5f, 5.0f));
+Camera camera(glm::vec3(0.0f, 0.0f, 5.0f));
 float lastX = default_width / 2.0f;
 float lastY = default_height / 2.0f;
 bool firstMouse = true;
@@ -185,21 +289,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             }
             break;
         }
-        case GLFW_KEY_KP_ADD:
-        case GLFW_KEY_EQUAL:
-            g_sample->set_additional_lights(g_sample->get_additional_lights() + 1);
-            break;
-        case GLFW_KEY_KP_SUBTRACT:
-        case GLFW_KEY_MINUS:
-            g_sample->set_additional_lights(g_sample->get_additional_lights() == 0 ? 0 :
-                                            g_sample->get_additional_lights() - 1);
-            break;
-        case GLFW_KEY_G:
-            g_sample->set_gamma(g_sample->get_gamma() + 0.2f);
-            break;
-        case GLFW_KEY_H:
-            g_sample->set_gamma(g_sample->get_gamma() - 0.2f);
-            break;
     }
 }
 
@@ -244,6 +333,8 @@ int main(int argc, char ** argv) {
         auto currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         g_sample->draw_frame();
         TwDraw();
         glfwSwapBuffers(window);

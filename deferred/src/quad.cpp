@@ -1,13 +1,19 @@
 #include "main.h"
 
-const GLfloat g_vertex_buffer_data[] = {
-    -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-    1.0f, -1.0f, 0.0f, 1.0, 0.0f,
-    -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
-    1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
-};
 
-quad1_t::quad1_t(GLuint shader) {
+quad1_t::quad1_t() {
+
+    GLfloat g_vertex_buffer_data[] = {
+            // positions   // texCoords
+            -1.0f,  1.0f,  0.0f, 1.0f,
+            -1.0f, -1.0f,  0.0f, 0.0f,
+            1.0f, -1.0f,  1.0f, 0.0f,
+
+            -1.0f,  1.0f,  0.0f, 1.0f,
+            1.0f, -1.0f,  1.0f, 0.0f,
+            1.0f,  1.0f,  1.0f, 1.0f
+    };
+
     glGenVertexArrays(1, &vao_);
     glBindVertexArray(vao_);
 
@@ -18,11 +24,11 @@ quad1_t::quad1_t(GLuint shader) {
 
     GLuint in_pos = 0;
     glEnableVertexAttribArray(in_pos);
-    glVertexAttribPointer(in_pos, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
+    glVertexAttribPointer(in_pos, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid*)0);
 
     GLuint in_uv = 1;
     glEnableVertexAttribArray(in_uv);
-    glVertexAttribPointer(in_uv, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+    glVertexAttribPointer(in_uv, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid*)(2 * sizeof(GLfloat)));
 
     glBindVertexArray(0);
 }
@@ -34,5 +40,7 @@ quad1_t::~quad1_t() {
 
 void quad1_t::draw() {
     glBindVertexArray(vao_);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+//    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 }
+

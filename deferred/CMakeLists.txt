@@ -25,7 +25,7 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
 
 file(GLOB SRC_FILES ${CMAKE_SOURCE_DIR}/src/*)
 
-add_executable(${PROJECT_NAME} ${SRC_FILES} src/glad.c)
+add_executable(${PROJECT_NAME} ${SRC_FILES} src/glad.c src/quad.cpp)
 target_link_libraries(
     ${PROJECT_NAME}
     ${ALL_LIBS}
